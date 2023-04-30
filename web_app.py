@@ -76,5 +76,5 @@ st.dataframe(
 
 
 st.write("""
-Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](tylerjamesburch.com/blog/misc/nhl-predictions)
+Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)
 """)
