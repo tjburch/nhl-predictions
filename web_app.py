@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from datetime import datetime
 from pathlib import Path
+import glob
 # Data formatting 
 # -------------------------------------------------------------------------------------
 team_colors = {
@@ -41,9 +42,12 @@ team_colors = {
     "Washington Capitals": "#041E42",
     "Winnipeg Jets": "#041E42"
 }
-current_date = datetime.now().strftime("%Y-%m-%d")
 directory_path = Path(__file__).parent
-output_df = pd.read_parquet(directory_path / f"data/prepped/{current_date}.pq")
+parquet_files = glob.glob(str(directory_path / "data/prepped/*.pq"))
+dates = [datetime.strptime(Path(file).stem, "%Y-%m-%d") for file in parquet_files]
+latest_date = max(dates)
+latest_date_str = latest_date.strftime("%Y-%m-%d")
+output_df = pd.read_parquet(directory_path / f"data/prepped/{latest_date_str}.pq")
 
 # Web App 
 # -------------------------------------------------------------------------------------
@@ -53,6 +57,8 @@ st.title("NHL Playoff Predictions")
 st.write("""
 Below are predictions for the remainder of the 2023 NHL playoffs. The underlying model assumes that the rate at which each team scores and gives up points are realizations of latent "goal scoring" and "goal suppressing" parameters. Additionally, a factor for home-ice advantage is incorporated. The model is fit to the 2022-2023 regular season data.
 """)
+         
+st.write(f"Last updated: {latest_date_str}")
 
 # Function to apply the color gradient to table cells
 def highlight_cells(val):
