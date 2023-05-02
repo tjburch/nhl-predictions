@@ -3,9 +3,10 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 import glob
+import re
 # Data formatting 
 # -------------------------------------------------------------------------------------
 team_colors = {
@@ -43,15 +44,27 @@ team_colors = {
     "Winnipeg Jets": "#041E42"
 }
 directory_path = Path(__file__).parent
+
+def is_valid_date_format(date_string):
+    pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
+    return bool(pattern.match(date_string))
+
 parquet_files = glob.glob(str(directory_path / "data/prepped/*.pq"))
-dates = [datetime.strptime(Path(file).stem, "%Y-%m-%d") for file in parquet_files]
+dates = [
+    datetime.strptime(Path(file).stem, "%Y-%m-%d")
+    for file in parquet_files
+    if is_valid_date_format(Path(file).stem)
+]
 latest_date = max(dates)
 latest_date_str = latest_date.strftime("%Y-%m-%d")
 output_df = pd.read_parquet(directory_path / f"data/prepped/{latest_date_str}.pq")
 
 # Web App 
 # -------------------------------------------------------------------------------------
-st.set_page_config(page_title="NHL Playoff Predictions", layout="wide")
+st.set_page_config(
+    page_title="NHL Playoff Predictions", 
+    layout="wide",
+    )
 st.title("NHL Playoff Predictions")
 
 st.write("""
@@ -80,6 +93,23 @@ st.dataframe(
     ]),
 )
 
+# Add daily matchup probailabilities
+file_path = directory_path / Path(f"data/prepped/matchups_{latest_date_str}.pq")
+if file_path.exists():
+    matchup_prob_df = pd.read_parquet(file_path)
+    matchup_prob_df['Home Win Probability'] = matchup_prob_df['Home Win Probability'].astype(int).astype(str) + '%'
+    matchup_prob_df['Away Win Probability'] = matchup_prob_df['Away Win Probability'].astype(int).astype(str) + '%'
+    # CSS to inject contained in a string
+    hide_table_row_index = """
+                <style>
+                thead tr th:first-child {display:none}
+                tbody th {display:none}
+                </style>
+                """
+    st.title("Daily Matchup Probabilities")
+    # Inject CSS with Markdown
+    st.markdown(hide_table_row_index, unsafe_allow_html=True)
+    st.table(matchup_prob_df)
 
 st.write("""
 Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)
