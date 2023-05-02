@@ -112,5 +112,8 @@ if file_path.exists():
     st.table(matchup_prob_df)
 
 st.write("""
-Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)
+Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)\
 """)
+st.caption("""
+Thanks for visiting - if you enjoy this content, please [help me keep the app alive!](https://bmc.link/tylerjamesburch)
+           """)
