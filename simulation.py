@@ -26,7 +26,7 @@ round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl = (
 # Data Injesting
 # ------------------------------------------------
 def data_injest():
-    full_schedule = pd.read_csv("end_of_year_schedule.csv")
+    full_schedule = pd.read_csv(r"/Users/tburch/Documents/github/nhl-hierarchical/end_of_year_schedule.csv")
     team_names = sorted(full_schedule['Visitor'].append(full_schedule['Home']).unique())
     team_mapping = {team_name: idx for idx, team_name in enumerate(team_names)}
     # Preprocess
@@ -104,13 +104,13 @@ def model_fit(data):
                         overtime_goals_likelihood(data.home_goals_ot, data.away_goals_ot, ot_home_theta, ot_away_theta))
 
         # Shootout model (conditioned on games that went to shootout)
-        so_coeff_a = pm.Normal("so_coeff_a", mu=0, sigma=1, dims="team")
-        so_coeff_d = pm.Normal("so_coeff_d", mu=0, sigma=1, dims="team")
-        so_coeff_h = pm.Normal("so_coeff_h", mu=0, sigma=1)
-        so_intercept = pm.Normal("so_intercept", mu=0, sigma=1)
+        so_coeff_o = pm.Normal("so_coeff_o", mu=0, sigma=1, dims="team")  # Offensive shootout coefficient
+        so_coeff_d = pm.Normal("so_coeff_d", mu=0, sigma=1, dims="team")  # Defensive shootout coefficient
+        so_coeff_h = pm.Normal("so_coeff_h", mu=0, sigma=1)  # Home advantage coefficient
+        so_intercept = pm.Normal("so_intercept", mu=0, sigma=1)  # Intercept term
 
         so_logit = (so_intercept +
-                    so_coeff_a[home_idx[shootout]] - so_coeff_a[away_idx[shootout]] +
+                    so_coeff_o[home_idx[shootout]] - so_coeff_o[away_idx[shootout]] +
                     so_coeff_d[home_idx[shootout]] - so_coeff_d[away_idx[shootout]] +
                     so_coeff_h * home)
 
@@ -128,39 +128,6 @@ def post_flt(array, team_name=None):
     else:
         return array.sel(team=team_name).values.reshape(-1)
     
-
-def predict_playoff_game(home_team_name, away_team_name, trace, num_simulations=1000):
-    post = trace.posterior
-    # Calculate the posterior predictive means for the home and away teams' goal expectations
-    home_theta_mean = np.mean(np.exp(post_flt(post['intercept']) + post_flt(post['home']) + post_flt(post['atts'], home_team_name) - post_flt(post['defs'], away_team_name)))
-    away_theta_mean = np.mean(np.exp(post_flt(post['intercept']) + post_flt(post['atts'], away_team_name) - post_flt(post['defs'], home_team_name)))
-
-    # Calculate the playoff overtime expectations
-    ot_playoff_home_theta = home_theta_mean * (1 / 3)
-    ot_playoff_away_theta = away_theta_mean * (1 / 3)
-
-    # Simulate goals for both teams using Poisson distributions
-    home_goals_sim = np.random.poisson(home_theta_mean, num_simulations)
-    away_goals_sim = np.random.poisson(away_theta_mean, num_simulations)
-
-    # Determine if the game goes into overtime
-    overtime = home_goals_sim == away_goals_sim
-
-    # Simulate overtime goals
-    ot_home_goals_sim = np.random.poisson(ot_playoff_home_theta, num_simulations)[overtime]
-    ot_away_goals_sim = np.random.poisson(ot_playoff_away_theta, num_simulations)[overtime]
-
-    # Determine the winner of the overtime games
-    ot_winner = ot_home_goals_sim > ot_away_goals_sim
-    home_winner = home_goals_sim > away_goals_sim
-
-    # Combine the results from regulation and overtime games
-    home_winner[overtime] = ot_winner
-
-    # Calculate the probability of the home team winning
-    prob_home_win = np.mean(home_winner)
-
-    return prob_home_win
 
 def get_matchup_prob(trace, home_team, away_team, n_samples=100):
     
@@ -188,9 +155,9 @@ def get_matchup_prob(trace, home_team, away_team, n_samples=100):
     # Compute the probability of home team winning using the sampled parameters
     win_prob_samples = []
     for home_theta, away_theta, ot_home_theta, ot_away_theta in zip(home_theta_samples, away_theta_samples, ot_home_theta_samples, ot_away_theta_samples):
-        # Assume no more than 9 goals
-        home_win_prob_regulation = sum([poisson.pmf(home_goals, home_theta) * sum([poisson.pmf(away_goals, away_theta) for away_goals in range(home_goals)]) for home_goals in range(10)])
-        home_win_prob_overtime = sum([poisson.pmf(home_goals, ot_home_theta) * sum([poisson.pmf(away_goals, ot_away_theta) for away_goals in range(home_goals)]) for home_goals in range(1, 10)])
+        # Assume no more than 8 goals
+        home_win_prob_regulation = sum([poisson.pmf(home_goals, home_theta) * sum([poisson.pmf(away_goals, away_theta) for away_goals in range(home_goals)]) for home_goals in range(9)])
+        home_win_prob_overtime = sum([poisson.pmf(home_goals, ot_home_theta) * sum([poisson.pmf(away_goals, ot_away_theta) for away_goals in range(home_goals)]) for home_goals in range(1, 9)])
         total_home_win_prob = home_win_prob_regulation + (1 - home_win_prob_regulation) * home_win_prob_overtime
         win_prob_samples.append(total_home_win_prob)
     
@@ -201,10 +168,8 @@ def get_matchup_prob(trace, home_team, away_team, n_samples=100):
 def simulate_playoff_round(matchups, trace, team_points, starting_wins=None):
     results = []
 
-    # Ensure the matchups input is a list of tuples
     if not isinstance(matchups[0], tuple) and not isinstance(matchups[0], list):
         matchups = [matchups]
-
 
     for team_a, team_b in matchups:
         if starting_wins is not None:
@@ -213,57 +178,53 @@ def simulate_playoff_round(matchups, trace, team_points, starting_wins=None):
             team_a_wins = 0
             team_b_wins = 0
 
-        # Determine which team has home ice advantage
-        team_a_points = team_points[team_a]
-        team_b_points = team_points[team_b]
-
-        if team_a_points > team_b_points:
-            home_team, away_team = team_a, team_b
+        if team_a_wins < 4 and team_b_wins < 4:
+            team_a_home_win_prob = get_matchup_prob(trace, team_a, team_b)
+            team_b_home_win_prob = get_matchup_prob(trace, team_b, team_a)
         else:
-            home_team, away_team = team_b, team_a
-
-        # Calculate win probability for the matchup
-        prob_home_win = get_matchup_prob(trace, home_team, away_team)
-
+            team_a_home_win_prob = np.nan
+            team_b_home_win_prob = np.nan
+ 
         # Simulate games with the 2-2-1-1-1 format
         for game in range(1, 2 * 4):
+            if team_a_wins >= 4 or team_b_wins >= 4:
+                break
+
             is_home_team_a = (
-                (game <= 2) or (game == 5) or (game == 7)
-            ) if home_team == team_a else not (
                 (game <= 2) or (game == 5) or (game == 7)
             )
 
             if is_home_team_a:
-                if np.random.random() < prob_home_win:
+                if np.random.random() < team_a_home_win_prob:
                     team_a_wins += 1
                 else:
                     team_b_wins += 1
             else:
-                if np.random.random() < (1 - prob_home_win):
-                    team_a_wins += 1
-                else:
+                if np.random.random() < team_b_home_win_prob:
                     team_b_wins += 1
+                else:
+                    team_a_wins += 1
 
-            if team_a_wins >= 4 or team_b_wins >= 4:
-                break
+
 
         winner = team_a if team_a_wins > team_b_wins else team_b
         games_played = team_a_wins + team_b_wins
         results.append({
             'team_a': team_a,
             'team_b': team_b,
-            "prob_used": prob_home_win,
             'team_a_wins': team_a_wins,
             'team_b_wins': team_b_wins,
             'winner': winner,
-            'games_played': games_played
-        })
+            'games_played': games_played,
+            'team_a_home_prob': team_a_home_win_prob,
+            'team_b_home_prob': team_b_home_win_prob,
+            })
 
-    # If there is only one matchup, return the winner directly
     if len(matchups) == 1:
         return results[0]
 
     return results
+
 
 team_points = {
     'Boston Bruins': 135,
@@ -376,7 +337,8 @@ def generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_
     all_stanley_dfs = pd.concat([res[3] for res in results])
 
     current_date = datetime.now().strftime("%Y-%m-%d")
-    output_dir = Path(f"./data/sim_output/{current_date}")
+    directory_path = Path(__file__).parent
+    output_dir = directory_path / Path(f"./data/sim_output/{current_date}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     all_round_1_dfs.to_parquet(output_dir / "round_1.pq")
@@ -390,4 +352,4 @@ if __name__ == "__main__":
     data = data_injest()
     model, trace = model_fit(data)
     print("Model fit")
-    generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl, num_simulations=200)
+    generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl, num_simulations=500)

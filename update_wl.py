@@ -3,32 +3,34 @@ from datetime import datetime, timedelta
 import os
 import hockey_scraper
 from collections import defaultdict
+from pathlib import Path
 
 ROUND_1_START_DATE = "2023-04-16"
-ROUND_2_START_DATE = "2023-05-01"
+ROUND_2_START_DATE = "2023-05-02"
 CONF_FINAL_START_DATE = "2023-05-15"
 STANLEY_CUP_START_DATE = "2023-05-29"
 
+team_names = {
+    'EDM': 'Edmonton Oilers',
+    'L.A': 'Los Angeles Kings',
+    'N.J': 'New Jersey Devils',
+    'NYR': 'New York Rangers',
+    'TOR': 'Toronto Maple Leafs',
+    'T.B': 'Tampa Bay Lightning',
+    'BOS': 'Boston Bruins',
+    'FLA': 'Florida Panthers',
+    'DAL': 'Dallas Stars',
+    'MIN': 'Minnesota Wild',
+    'COL': 'Colorado Avalanche',
+    'SEA': 'Seattle Kraken',
+    'CAR': 'Carolina Hurricanes',
+    'NYI': 'New York Islanders',
+    'VGK': 'Vegas Golden Knights',
+    'WPG': 'Winnipeg Jets',
+}
 
 def scrape_schedule_to_dict(start_date, end_date):
-    team_names = {
-        'EDM': 'Edmonton Oilers',
-        'L.A': 'Los Angeles Kings',
-        'N.J': 'New Jersey Devils',
-        'NYR': 'New York Rangers',
-        'TOR': 'Toronto Maple Leafs',
-        'T.B': 'Tampa Bay Lightning',
-        'BOS': 'Boston Bruins',
-        'FLA': 'Florida Panthers',
-        'DAL': 'Dallas Stars',
-        'MIN': 'Minnesota Wild',
-        'COL': 'Colorado Avalanche',
-        'SEA': 'Seattle Kraken',
-        'CAR': 'Carolina Hurricanes',
-        'NYI': 'New York Islanders',
-        'VGK': 'Vegas Golden Knights',
-        'WPG': 'Winnipeg Jets',
-    }
+
     df = hockey_scraper.scrape_schedule(start_date, end_date)
     completed_games = df[df['status'] == 'Final']
 
@@ -62,7 +64,8 @@ def scrape_schedule_to_dict(start_date, end_date):
 
 # Define a helper function to save the dictionary to a file
 def save_dict_to_file(round_results_dict, date_string, round_name):
-    file_path = f"data/true_wl/{date_string}.py"
+    directory_path = Path(__file__).parent
+    file_path =  directory_path / f"data/true_wl/{date_string}.py"
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, "a") as f:
         f.write(f"{round_name} = {round_results_dict}\n")
@@ -77,3 +80,11 @@ save_dict_to_file(round1_dict, today, "round1_true_wl")
 save_dict_to_file(round2_dict, today, "round2_true_wl")
 save_dict_to_file(conf_dict, today, "conf_true_wl")
 save_dict_to_file(stan_dict, today, "stan_true_wl")
+
+
+# Get today's matchups
+daily_matchups = hockey_scraper.scrape_schedule(today, today)
+if len(daily_matchups) > 0:
+    directory_path = Path(__file__).parent
+    file_path =  directory_path / f"data/daily_matchups/{today}.pq"
+    daily_matchups.to_parquet(file_path)
