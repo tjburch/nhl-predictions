@@ -126,6 +126,7 @@ st.set_page_config(
     page_title="NHL Playoff Predictions", 
     layout="wide",
     )
+inject_ga()
 st.title("NHL Playoff Predictions")
 st.write(f"Last updated: {latest_date_str}")
 st.write("""
@@ -168,4 +169,3 @@ st.caption("""
 Thanks for visiting - if you enjoy this content, please [help me keep the app alive!](https://bmc.link/tylerjamesburch)
            """)
 
-inject_ga()
