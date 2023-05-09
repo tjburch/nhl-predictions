@@ -134,7 +134,7 @@ def about_model_page(directory_path):
     st.image(str(directory_path / Path(r"visualizations/goal_suppression.png")), caption="Goal-Suppression Parameter",width=800)
 
     st.write("""
-    Lastly, the home-ice advantage parameter is found to provide just over one goal's worth of benefit to the home team (95% CI is 1.011 to 1.101 goals).
+    Lastly, the home-ice advantage parameter is found to provide around 0.175 goals, with a 95% HDI of [-0.011, 0.368].
     """)
     st.image(str(directory_path / Path(r"visualizations/home_ice.png")), caption="Home Ice Parameter", width=600)
 
