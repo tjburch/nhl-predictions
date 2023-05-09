@@ -10,17 +10,24 @@ from functools import partial
 from pathlib import Path
 from datetime import datetime
 import importlib
+import sys
 
-# Import current W/L record
-today_str = datetime.now().strftime('%Y-%m-%d')
-module_name = f"data.true_wl.{today_str}"
-module = importlib.import_module(module_name)
-round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl = (
-    module.round1_true_wl or None,
-    module.round2_true_wl or None,
-    module.conf_true_wl or None,
-    module.stan_true_wl or None
-)
+def load_data(date_str):
+    module_name = f"data.true_wl.{date_str}"
+    module = importlib.import_module(module_name)
+    round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl = (
+        module.round1_true_wl or None,
+        module.round2_true_wl or None,
+        module.conf_true_wl or None,
+        module.stan_true_wl or None
+    )
+    return round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl
+
+# Check if a date string is provided as a command-line argument
+if len(sys.argv) > 1:
+    date_str = sys.argv[1]
+else:
+    date_str = datetime.now().strftime('%Y-%m-%d')
 
 
 # Data Injesting
@@ -173,7 +180,8 @@ def simulate_playoff_round(matchups, trace, team_points, starting_wins=None):
 
     for team_a, team_b in matchups:
         if starting_wins is not None:
-            team_a_wins, team_b_wins = starting_wins[(team_a, team_b)]['team_a_wins'], starting_wins[(team_a, team_b)]['team_b_wins']
+            team_a_wins = starting_wins.get((team_a, team_b), {}).get('team_a_wins', 0)
+            team_b_wins = starting_wins.get((team_a, team_b), {}).get('team_b_wins', 0)
         else:
             team_a_wins = 0
             team_b_wins = 0
@@ -282,7 +290,9 @@ def run_playoff_sim(
     # ROUND 2
     # --------------
     east_round_2_matchups = [tuple(east_round_1_winners[0:2]), tuple(east_round_1_winners[2:])]
+    east_round_2_matchups = [sorted(s) for s in east_round_2_matchups]
     west_round_2_matchups = [tuple(west_round_1_winners[0:2]), tuple(west_round_1_winners[2:])]
+    west_round_2_matchups = [sorted(s) for s in west_round_2_matchups]
 
     east_round_2_results = simulate_playoff_round(east_round_2_matchups, trace, team_points, round_2_wl)
     west_round_2_results = simulate_playoff_round(west_round_2_matchups, trace, team_points, round_2_wl)
@@ -294,8 +304,8 @@ def run_playoff_sim(
 
     # CONFERENCE FINALS
     # --------------
-    east_conference_finals_matchup = tuple(east_round_2_winners)
-    west_conference_finals_matchup = tuple(west_round_2_winners)
+    east_conference_finals_matchup = sorted(tuple(east_round_2_winners))
+    west_conference_finals_matchup = sorted(tuple(west_round_2_winners))
 
     east_conference_finals_result = simulate_playoff_round(east_conference_finals_matchup, trace, team_points, conf_wl)
     west_conference_finals_result = simulate_playoff_round(west_conference_finals_matchup, trace, team_points, conf_wl)
@@ -307,7 +317,7 @@ def run_playoff_sim(
 
     # STANLEY CUP
     # --------------
-    stanley_cup_finals_matchup = (east_conference_winner, west_conference_winner)
+    stanley_cup_finals_matchup = sorted((east_conference_winner, west_conference_winner))
 
     # Simulate the Stanley Cup finals
     stanley_cup_finals_result = simulate_playoff_round(stanley_cup_finals_matchup, trace, team_points, stan_wl)
@@ -336,9 +346,8 @@ def generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_
     all_conf_dfs = pd.concat([res[2] for res in results])
     all_stanley_dfs = pd.concat([res[3] for res in results])
 
-    current_date = datetime.now().strftime("%Y-%m-%d")
     directory_path = Path(__file__).parent
-    output_dir = directory_path / Path(f"./data/sim_output/{current_date}")
+    output_dir = directory_path / Path(f"./data/sim_output/{date_str}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     all_round_1_dfs.to_parquet(output_dir / "round_1.pq")
@@ -346,10 +355,11 @@ def generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_
     all_conf_dfs.to_parquet(output_dir / "conference_finals.pq")
     all_stanley_dfs.to_parquet(output_dir / "stanley_cup_finals.pq")
 
-
 if __name__ == "__main__":
 
     data = data_injest()
     model, trace = model_fit(data)
     print("Model fit")
+    print("Loading data from ", date_str)
+    round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl = load_data(date_str)
     generate_all_sims(trace, round1_true_wl, round2_true_wl, conf_true_wl, stan_true_wl, num_simulations=500)

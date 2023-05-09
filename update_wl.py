@@ -4,8 +4,10 @@ import os
 import hockey_scraper
 from collections import defaultdict
 from pathlib import Path
+import sys
 
 ROUND_1_START_DATE = "2023-04-16"
+ROUND_1_END_DATE = "2023-05-01"
 ROUND_2_START_DATE = "2023-05-02"
 CONF_FINAL_START_DATE = "2023-05-15"
 STANLEY_CUP_START_DATE = "2023-05-29"
@@ -29,9 +31,10 @@ team_names = {
     'WPG': 'Winnipeg Jets',
 }
 
-def scrape_schedule_to_dict(start_date, end_date):
+def scrape_schedule_to_dict(start_date, end_date, target_date):
 
     df = hockey_scraper.scrape_schedule(start_date, end_date)
+    df.loc[df['date'] >= target_date, 'status'] = 'Preview'
     completed_games = df[df['status'] == 'Final']
 
     # Initialize an empty defaultdict
@@ -70,21 +73,28 @@ def save_dict_to_file(round_results_dict, date_string, round_name):
     with open(file_path, "a") as f:
         f.write(f"{round_name} = {round_results_dict}\n")
 
-today = datetime.now().strftime("%Y-%m-%d")
-round1_dict = scrape_schedule_to_dict(ROUND_1_START_DATE, ROUND_2_START_DATE)
-round2_dict = scrape_schedule_to_dict(ROUND_2_START_DATE, CONF_FINAL_START_DATE)
-conf_dict = scrape_schedule_to_dict(CONF_FINAL_START_DATE, STANLEY_CUP_START_DATE)
-stan_dict = scrape_schedule_to_dict(STANLEY_CUP_START_DATE, "2023-07-01")
 
-save_dict_to_file(round1_dict, today, "round1_true_wl")
-save_dict_to_file(round2_dict, today, "round2_true_wl")
-save_dict_to_file(conf_dict, today, "conf_true_wl")
-save_dict_to_file(stan_dict, today, "stan_true_wl")
+if __name__ == "__main__":
+    # Check if a date string is provided as a command-line argument
+    if len(sys.argv) > 1:
+        target_date = sys.argv[1]
+    else:
+        target_date = datetime.now().strftime('%Y-%m-%d')
+    print(target_date)
 
+    round1_dict = scrape_schedule_to_dict(ROUND_1_START_DATE, ROUND_1_END_DATE, target_date)
+    round2_dict = scrape_schedule_to_dict(ROUND_2_START_DATE, CONF_FINAL_START_DATE, target_date)
+    conf_dict = scrape_schedule_to_dict(CONF_FINAL_START_DATE, STANLEY_CUP_START_DATE, target_date)
+    stan_dict = scrape_schedule_to_dict(STANLEY_CUP_START_DATE, "2023-07-01", target_date)
 
-# Get today's matchups
-daily_matchups = hockey_scraper.scrape_schedule(today, today)
-if len(daily_matchups) > 0:
-    directory_path = Path(__file__).parent
-    file_path =  directory_path / f"data/daily_matchups/{today}.pq"
-    daily_matchups.to_parquet(file_path)
+    save_dict_to_file(round1_dict, target_date, "round1_true_wl")
+    save_dict_to_file(round2_dict, target_date, "round2_true_wl")
+    save_dict_to_file(conf_dict, target_date, "conf_true_wl")
+    save_dict_to_file(stan_dict, target_date, "stan_true_wl")
+
+    # Get daily matchups
+    daily_matchups = hockey_scraper.scrape_schedule(target_date, target_date)
+    if len(daily_matchups) > 0:
+        directory_path = Path(__file__).parent
+        file_path =  directory_path / f"data/daily_matchups/{target_date}.pq"
+        daily_matchups.to_parquet(file_path)

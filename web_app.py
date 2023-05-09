@@ -138,6 +138,7 @@ def about_model_page(directory_path):
     """)
     st.image(str(directory_path / Path(r"visualizations/home_ice.png")), caption="Home Ice Parameter", width=600)
 
+    st.write("For more technical information about the model, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)")
 
 def main():
 
@@ -163,7 +164,7 @@ def main():
 
     st.markdown("-----")
     st.write("""
-    Model and visuals all produced by Tyler Burch. For more information on the methodology, see [this blog post](https://tylerjamesburch.com/blog/misc/nhl-predictions)
+    Model and visuals all produced by [Tyler Burch](https://tylerjamesburch.com/)
     """)
     st.caption("""
     Thanks for visiting - if you enjoy this content, please [help me keep the app alive!](https://bmc.link/tylerjamesburch)
